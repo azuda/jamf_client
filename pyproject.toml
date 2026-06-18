@@ -10,5 +10,7 @@ dependencies = [
     "requests",
     "python-dotenv",
     "urllib3",
-    "truststore",
 ]
+
+[project.optional-dependencies]
+truststore = ["truststore"]

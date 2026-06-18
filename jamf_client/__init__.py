@@ -24,6 +24,16 @@ if _missing:
         f"Check that a .env file exists in the calling script's directory."
     )
 
+__all__ = [
+    "JAMF_URL",
+    "get_token",
+    "invalidate_token",
+    "check_token_expiration",
+    "make_session",
+    "jamf_get",
+    "jamf_patch",
+]
+
 try:
     import truststore
     truststore.inject_into_ssl()
@@ -74,6 +84,7 @@ def make_session():
     )
     adapter = requests.adapters.HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
+    session.mount("http://", adapter)
     return session
 
 
