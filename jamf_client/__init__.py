@@ -5,26 +5,12 @@ import sys
 import time
 import urllib3
 
-load_dotenv()
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-JAMF_URL = os.getenv("JAMF_URL")
-
-_missing = [
-    name for name, val in [
-        ("CLIENT_ID", CLIENT_ID),
-        ("CLIENT_SECRET", CLIENT_SECRET),
-        ("JAMF_URL", JAMF_URL),
-    ]
-    if not val
-]
-if _missing:
-    raise EnvironmentError(
-        f"Missing required environment variables: {', '.join(_missing)}\n"
-        f"Check that a .env file exists in the calling script's directory."
-    )
+CLIENT_ID = None
+CLIENT_SECRET = None
+JAMF_URL = None
 
 __all__ = [
+    "init",
     "JAMF_URL",
     "get_token",
     "invalidate_token",
@@ -34,11 +20,33 @@ __all__ = [
     "jamf_patch",
 ]
 
-try:
-    import truststore
-    truststore.inject_into_ssl()
-except ImportError:
-    pass
+
+def init():
+    global CLIENT_ID, CLIENT_SECRET, JAMF_URL
+    load_dotenv()
+    CLIENT_ID = os.getenv("CLIENT_ID")
+    CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+    JAMF_URL = os.getenv("JAMF_URL")
+
+    missing = [
+        name for name, val in [
+            ("CLIENT_ID", CLIENT_ID),
+            ("CLIENT_SECRET", CLIENT_SECRET),
+            ("JAMF_URL", JAMF_URL),
+        ]
+        if not val
+    ]
+    if missing:
+        raise EnvironmentError(
+            f"Missing required environment variables: {', '.join(missing)}\n"
+            f"Check that a .env file exists in the calling script's directory."
+        )
+
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except ImportError:
+        pass
 
 
 def get_token():
