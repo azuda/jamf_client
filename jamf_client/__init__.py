@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+from dataclasses import dataclass
 from dotenv import load_dotenv
 import os
 import requests
@@ -5,34 +7,46 @@ import sys
 import time
 import urllib3
 
-CLIENT_ID = None
-CLIENT_SECRET = None
-JAMF_URL = None
+_CLIENT_ID = None
+_CLIENT_SECRET = None
+_JAMF_URL = None
+_auth_session = None
 
 __all__ = [
+    "Token",
     "init",
-    "JAMF_URL",
     "get_token",
     "invalidate_token",
-    "check_token_expiration",
     "make_session",
+    "jamf_session",
     "jamf_get",
     "jamf_patch",
 ]
 
 
+@dataclass
+class Token:
+    access_token: str
+    expiration: int  # unix epoch
+
+    @classmethod
+    def fetch(cls) -> "Token":
+        access_token, expires_in = get_token()
+        return cls(access_token=access_token, expiration=int(time.time()) + expires_in)
+
+
 def init():
-    global CLIENT_ID, CLIENT_SECRET, JAMF_URL
+    global _CLIENT_ID, _CLIENT_SECRET, _JAMF_URL
     load_dotenv()
-    CLIENT_ID = os.getenv("CLIENT_ID")
-    CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-    JAMF_URL = os.getenv("JAMF_URL")
+    _CLIENT_ID = os.getenv("CLIENT_ID")
+    _CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+    _JAMF_URL = os.getenv("JAMF_URL")
 
     missing = [
         name for name, val in [
-            ("CLIENT_ID", CLIENT_ID),
-            ("CLIENT_SECRET", CLIENT_SECRET),
-            ("JAMF_URL", JAMF_URL),
+            ("CLIENT_ID", _CLIENT_ID),
+            ("CLIENT_SECRET", _CLIENT_SECRET),
+            ("JAMF_URL", _JAMF_URL),
         ]
         if not val
     ]
@@ -49,36 +63,41 @@ def init():
         pass
 
 
+def _get_auth_session():
+    global _auth_session
+    if _auth_session is None:
+        _auth_session = make_session()
+    return _auth_session
+
+
 def get_token():
-    url = f"{JAMF_URL}/api/oauth/token"
+    url = f"{_JAMF_URL}/api/oauth/token"
     data = {
-        "client_id": CLIENT_ID,
+        "client_id": _CLIENT_ID,
         "grant_type": "client_credentials",
-        "client_secret": CLIENT_SECRET,
+        "client_secret": _CLIENT_SECRET,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    response = requests.post(url, data=data, headers=headers)
+    response = _get_auth_session().post(url, data=data, headers=headers)
     response.raise_for_status()
     token_data = response.json()
     return token_data["access_token"], token_data["expires_in"]
 
 
-def invalidate_token(token):
-    url = f"{JAMF_URL}/api/v1/auth/invalidate-token"
+def invalidate_token(token: str):
+    url = f"{_JAMF_URL}/api/v1/auth/invalidate-token"
     headers = {"Authorization": f"Bearer {token}"}
     try:
-        response = requests.post(url, headers=headers)
+        response = _get_auth_session().post(url, headers=headers)
         response.raise_for_status()
     except requests.RequestException as e:
         print(f"Warning: Failed to invalidate token: {e}", file=sys.stderr)
 
 
-def check_token_expiration(access_token, token_expiration_epoch):
-    current_epoch = int(time.time())
-    if current_epoch > token_expiration_epoch - 15:
-        access_token, expires_in = get_token()
-        token_expiration_epoch = current_epoch + expires_in
-    return access_token, token_expiration_epoch
+def _refresh_token_if_needed(token: "Token"):
+    if int(time.time()) > token.expiration - 15:
+        token.access_token, expires_in = get_token()
+        token.expiration = int(time.time()) + expires_in
 
 
 def make_session():
@@ -96,22 +115,48 @@ def make_session():
     return session
 
 
-def jamf_get(endpoint, token, session):
-    token["t"], token["expiration"] = check_token_expiration(token["t"], token["expiration"])
-    url = f"{JAMF_URL}{endpoint}"
+@contextmanager
+def jamf_session():
+    """Context manager yielding a ready-to-use (token, session) pair.
+
+    Invalidates the token and closes the session on exit.
+
+    Usage::
+
+        with jamf_session() as (token, session):
+            response = jamf_get("/api/v1/computers", token, session)
+    """
+    token = Token.fetch()
+    session = make_session()
+    try:
+        yield token, session
+    finally:
+        invalidate_token(token.access_token)
+        session.close()
+
+
+def jamf_get(endpoint, token: "Token", session, *, raise_for_status=True):
+    _refresh_token_if_needed(token)
+    url = f"{_JAMF_URL}{endpoint}"
     headers = {
         "accept": "application/json",
-        "authorization": f"Bearer {token['t']}",
+        "authorization": f"Bearer {token.access_token}",
     }
-    return session.get(url, headers=headers)
+    response = session.get(url, headers=headers)
+    if raise_for_status:
+        response.raise_for_status()
+    return response
 
 
-def jamf_patch(payload, endpoint, token, session):
-    token["t"], token["expiration"] = check_token_expiration(token["t"], token["expiration"])
-    url = f"{JAMF_URL}{endpoint}"
+def jamf_patch(payload, endpoint, token: "Token", session, *, raise_for_status=True):
+    _refresh_token_if_needed(token)
+    url = f"{_JAMF_URL}{endpoint}"
     headers = {
         "accept": "application/json",
         "content-type": "application/json",
-        "authorization": f"Bearer {token['t']}",
+        "authorization": f"Bearer {token.access_token}",
     }
-    return session.patch(url, json=payload, headers=headers)
+    response = session.patch(url, json=payload, headers=headers)
+    if raise_for_status:
+        response.raise_for_status()
+    return response
