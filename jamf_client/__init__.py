@@ -1,11 +1,14 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from pathlib import Path
 import os
 import requests
 import sys
 import time
 import urllib3
+
+_REPO_ROOT = Path(__file__).parent.parent
 
 CLIENT_ID = None
 CLIENT_SECRET = None
@@ -39,7 +42,7 @@ class Token:
 
 def init():
     global CLIENT_ID, CLIENT_SECRET, JAMF_URL
-    load_dotenv()
+    load_dotenv(_REPO_ROOT / ".env")
     CLIENT_ID = os.getenv("CLIENT_ID")
     CLIENT_SECRET = os.getenv("CLIENT_SECRET")
     JAMF_URL = os.getenv("JAMF_URL")
