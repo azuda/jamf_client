@@ -15,8 +15,10 @@ _auth_session = None
 __all__ = [
     "Token",
     "init",
+    "JAMF_URL",
     "get_token",
     "invalidate_token",
+    "check_token_expiration",
     "make_session",
     "jamf_session",
     "jamf_get",
@@ -94,7 +96,14 @@ def invalidate_token(token: str):
         print(f"Warning: Failed to invalidate token: {e}", file=sys.stderr)
 
 
-def check_token_expiration(token: "Token"):
+def check_token_expiration(access_token: str, expiration: int):
+    if int(time.time()) > expiration - 15:
+        access_token, expires_in = get_token()
+        expiration = int(time.time()) + expires_in
+    return access_token, expiration
+
+
+def _refresh_token_if_needed(token: "Token"):
     if int(time.time()) > token.expiration - 15:
         token.access_token, expires_in = get_token()
         token.expiration = int(time.time()) + expires_in
