@@ -94,7 +94,7 @@ def invalidate_token(token: str):
         print(f"Warning: Failed to invalidate token: {e}", file=sys.stderr)
 
 
-def _refresh_token_if_needed(token: "Token"):
+def check_token_expiration(token: "Token"):
     if int(time.time()) > token.expiration - 15:
         token.access_token, expires_in = get_token()
         token.expiration = int(time.time()) + expires_in
