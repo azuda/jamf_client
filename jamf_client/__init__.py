@@ -7,9 +7,9 @@ import sys
 import time
 import urllib3
 
-_CLIENT_ID = None
-_CLIENT_SECRET = None
-_JAMF_URL = None
+CLIENT_ID = None
+CLIENT_SECRET = None
+JAMF_URL = None
 _auth_session = None
 
 __all__ = [
@@ -36,17 +36,17 @@ class Token:
 
 
 def init():
-    global _CLIENT_ID, _CLIENT_SECRET, _JAMF_URL
+    global CLIENT_ID, CLIENT_SECRET, JAMF_URL
     load_dotenv()
-    _CLIENT_ID = os.getenv("CLIENT_ID")
-    _CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-    _JAMF_URL = os.getenv("JAMF_URL")
+    CLIENT_ID = os.getenv("CLIENT_ID")
+    CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+    JAMF_URL = os.getenv("JAMF_URL")
 
     missing = [
         name for name, val in [
-            ("CLIENT_ID", _CLIENT_ID),
-            ("CLIENT_SECRET", _CLIENT_SECRET),
-            ("JAMF_URL", _JAMF_URL),
+            ("CLIENT_ID", CLIENT_ID),
+            ("CLIENT_SECRET", CLIENT_SECRET),
+            ("JAMF_URL", JAMF_URL),
         ]
         if not val
     ]
@@ -71,11 +71,11 @@ def _get_auth_session():
 
 
 def get_token():
-    url = f"{_JAMF_URL}/api/oauth/token"
+    url = f"{JAMF_URL}/api/oauth/token"
     data = {
-        "client_id": _CLIENT_ID,
+        "client_id": CLIENT_ID,
         "grant_type": "client_credentials",
-        "client_secret": _CLIENT_SECRET,
+        "client_secret": CLIENT_SECRET,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     response = _get_auth_session().post(url, data=data, headers=headers)
@@ -85,7 +85,7 @@ def get_token():
 
 
 def invalidate_token(token: str):
-    url = f"{_JAMF_URL}/api/v1/auth/invalidate-token"
+    url = f"{JAMF_URL}/api/v1/auth/invalidate-token"
     headers = {"Authorization": f"Bearer {token}"}
     try:
         response = _get_auth_session().post(url, headers=headers)
@@ -137,7 +137,7 @@ def jamf_session():
 
 def jamf_get(endpoint, token: "Token", session, *, raise_for_status=True):
     _refresh_token_if_needed(token)
-    url = f"{_JAMF_URL}{endpoint}"
+    url = f"{JAMF_URL}{endpoint}"
     headers = {
         "accept": "application/json",
         "authorization": f"Bearer {token.access_token}",
@@ -150,7 +150,7 @@ def jamf_get(endpoint, token: "Token", session, *, raise_for_status=True):
 
 def jamf_patch(payload, endpoint, token: "Token", session, *, raise_for_status=True):
     _refresh_token_if_needed(token)
-    url = f"{_JAMF_URL}{endpoint}"
+    url = f"{JAMF_URL}{endpoint}"
     headers = {
         "accept": "application/json",
         "content-type": "application/json",
