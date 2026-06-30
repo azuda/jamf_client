@@ -7,7 +7,4 @@ cd "$SCRIPT_DIR"
 echo "==> Pulling latest changes..."
 git pull --ff-only
 
-echo "==> Reinstalling package..."
-pip install --quiet -e ".[truststore]" 2>/dev/null || pip install --quiet -e .
-
 echo "==> Done."
